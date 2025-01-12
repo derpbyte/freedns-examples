@@ -8,11 +8,20 @@ CAPTCHA_DIR = 'static/captchas'
 if not os.path.exists(CAPTCHA_DIR):
     os.makedirs(CAPTCHA_DIR)
 
+def generate_captcha(client):
+    """Generate a new captcha and save it to the CAPTCHA_DIR."""
+    captcha_image = "captcha.png"
+    captcha_path = os.path.join(CAPTCHA_DIR, captcha_image)
+    captcha_image_data = client.get_captcha()
+    with open(captcha_path, "wb") as f:
+        f.write(captcha_image_data)
+    return captcha_image
+
 @app.route('/', methods=['GET', 'POST'])
 def home():
     client = freedns.Client()
-    
     captcha_image = None
+
     if request.method == 'POST':
         action = request.form['action']
         try:
@@ -20,7 +29,8 @@ def home():
                 email = request.form['email']
                 password = request.form['password']
                 client.login(username=email, password=password)
-                return render_template('index.html', message="Login successful!", logged_in=True, client=client, captcha_image=None)
+                captcha_image = generate_captcha(client)
+                return render_template('index.html', message="Login successful!", logged_in=True, client=client, captcha_image=captcha_image)
 
             elif action == 'sign_up':
                 captcha_code = request.form['captcha_code']
@@ -37,7 +47,7 @@ def home():
                     password=password,
                     email=email
                 )
-                return render_template('index.html', message="Account created! Please check your email.", logged_in=True, client=client, captcha_image=None)
+                return render_template('index.html', message="Account created! Please check your email.", logged_in=False, captcha_image=None)
 
             elif action == 'create_subdomain':
                 domain_name = request.form['domain_name']
@@ -45,11 +55,12 @@ def home():
                 record_type = request.form['record_type']
                 destination = request.form['destination']
                 captcha_code = request.form['captcha_code']
-                
+
                 registry = client.get_registry()  # assuming user is logged in already
                 domain_map = {domain['domain']: domain['id'] for domain in registry['domains']}
                 if domain_name not in domain_map:
-                    return render_template('index.html', message="Invalid domain name.", logged_in=True, captcha_image=None)
+                    captcha_image = generate_captcha(client)
+                    return render_template('index.html', message="Invalid domain name.", logged_in=True, captcha_image=captcha_image)
 
                 domain_id = domain_map[domain_name]
                 client.create_subdomain(
@@ -59,18 +70,14 @@ def home():
                     domain_id=int(domain_id),
                     destination=destination
                 )
-                return render_template('index.html', message="Subdomain created successfully!", logged_in=True, client=client, captcha_image=None)
+                captcha_image = generate_captcha(client)
+                return render_template('index.html', message="Subdomain created successfully!", logged_in=True, captcha_image=captcha_image)
 
         except RuntimeError as e:
-            return render_template('index.html', message=f"Error: {e}", logged_in=False, captcha_image=None)
+            captcha_image = generate_captcha(client)
+            return render_template('index.html', message=f"Error: {e}", logged_in=False, captcha_image=captcha_image)
 
-    captcha_image = "captcha.png"
-    captcha_path = os.path.join(CAPTCHA_DIR, captcha_image)
-    captcha_image_data = client.get_captcha()
-
-    with open(captcha_path, "wb") as f:
-        f.write(captcha_image_data)
-
+    captcha_image = generate_captcha(client)
     return render_template('index.html', logged_in=False, captcha_image=captcha_image)
 
 @app.route('/static/captchas/<filename>')
