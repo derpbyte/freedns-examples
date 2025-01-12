@@ -1,7 +1,73 @@
+import requests
+import random
+import os
 import freedns
+
+def load_proxies(file_path="proxy.txt"):
+    """Load proxies from a file."""
+    if not os.path.exists(file_path):
+        print("proxy.txt not found. Requests will use the real IP.")
+        return []
+    else:
+        print("Proxies found in proxy.txt. Checking for a working IP.")
+
+    with open(file_path, "r") as f:
+        proxies = [line.strip() for line in f if line.strip()]
+
+    if not proxies:
+        print("No proxies found in proxy.txt. Requests will use the real IP.")
+    return proxies
+
+class ProxyClient(freedns.Client):
+    def __init__(self, proxies, timeout=5):
+        """Init the ProxyClient with a list of proxies (proxy.txt) and a timeout."""
+        super().__init__()
+        self.proxies = proxies
+        self.timeout = timeout
+        self.session = self._get_proxy_session()
+
+    def _get_proxy_session(self):
+        """Create a requests.Session using a random proxy from the proxy.txt,"""
+        session = requests.Session()
+        while self.proxies:
+            proxy = random.choice(self.proxies)
+            proxy_parts = proxy.split(":")
+
+            if len(proxy_parts) < 2:
+                print(f"Invalid proxy format: {proxy}. Skipping.")
+                self.proxies.remove(proxy)
+                continue
+
+            proxy_type = "http"
+            if len(proxy_parts) == 3:
+                proxy_type = proxy_parts[0]
+                proxy_address = f"{proxy_parts[1]}:{proxy_parts[2]}"
+            else:
+                proxy_address = proxy
+
+            session.proxies = {
+                "http": f"{proxy_type}://{proxy_address}",
+                "https": f"{proxy_type}://{proxy_address}"
+            }
+            try:
+                response = session.get("https://www.google.com", timeout=self.timeout)
+                if response.status_code == 200:
+                    print(f"Using proxy: {proxy}")
+                    return session
+                else:
+                    print(f"Proxy {proxy} returned status code {response.status_code}. Trying another proxy.")
+            except (requests.RequestException, requests.exceptions.Timeout):
+                print(f"Proxy {proxy} failed. Trying another proxy.")
+                self.proxies.remove(proxy)
+
+        print("No working proxies found. Requests will use the real IP.")
+        return requests.Session()
 
 def main():
     print("Welcome to the FreeDNS Client!")
+
+    proxies = load_proxies()
+    client = ProxyClient(proxies)
 
     while True:
         print("\nOptions:")
@@ -12,20 +78,18 @@ def main():
         choice = input("Choose an option (1, 2, or 3): ")
 
         if choice == "1":
-            login()
+            login(client)
         elif choice == "2":
-            sign_up()
+            sign_up(client)
         elif choice == "3":
             print("Exiting the program. Goodbye!")
             break
         else:
             print("Invalid choice. Please try again.")
 
-def login():
+def login(client):
     email = input("Enter your email: ")
     password = input("Enter your password: ")
-
-    client = freedns.Client()
 
     try:
         client.login(username=email, password=password)
@@ -49,9 +113,7 @@ def login():
     except RuntimeError as e:
         print(f"Error: {e}")
 
-def sign_up():
-    client = freedns.Client()
-
+def sign_up(client):
     try:
         print("\nRequesting captcha for account creation...")
         captcha_image = client.get_captcha()
@@ -84,22 +146,9 @@ def sign_up():
 
 def create_subdomain(client):
     try:
-        print("\nFetching domain registry...")
-        registry = client.get_registry()
-
-        print("\nAvailable domains:")
-        domain_map = {domain['domain']: domain['id'] for domain in registry['domains']}
-        for domain in registry['domains']:
-            print(f"Domain: {domain['domain']}")
-
         domain_name = input("Enter the domain name to use: ")
         subdomain_name = input("Enter the subdomain name you want to create: ")
 
-        if domain_name not in domain_map:
-            print("Invalid domain name. Please try again.")
-            return
-
-        domain_id = domain_map[domain_name]
         record_type = input("Enter the record type (e.g., A, CNAME): ")
         destination = input("Enter the destination for the record: ")
 
@@ -116,7 +165,7 @@ def create_subdomain(client):
             captcha_code=captcha_code,
             record_type=record_type,
             subdomain=subdomain_name,
-            domain_id=int(domain_id),
+            domain_id=domain_name,
             destination=destination
         )
 
