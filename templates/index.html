@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreeDNS Client</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { width: 500px; margin: 0 auto; }
+        .message { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        input, button { width: 100%; padding: 10px; margin: 10px 0; }
+        button { cursor: pointer; }
+        img { max-width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>FreeDNS Client</h2>
+        {% if message %}
+            <p class="{{ 'message' if 'Error' not in message else 'error' }}">{{ message }}</p>
+        {% endif %}
+
+        {% if not logged_in %}
+            <form method="POST">
+                <h3>Log In</h3>
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <button type="submit" name="action" value="login">Log In</button>
+            </form>
+
+            <form method="POST">
+                <h3>Sign Up</h3>
+                <input type="text" name="firstname" placeholder="First Name" required>
+                <input type="text" name="lastname" placeholder="Last Name" required>
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <input type="email" name="email" placeholder="Email" required>
+                {% if captcha_image %}
+                    <img src="{{ url_for('serve_captcha', filename=captcha_image) }}" alt="Captcha Image">
+                    <input type="text" name="captcha_code" placeholder="Captcha Code" required>
+                {% endif %}
+                <button type="submit" name="action" value="sign_up">Sign Up</button>
+            </form>
+        {% else %}
+            <form method="POST">
+                <h3>Create a Subdomain</h3>
+                <input type="text" name="domain_name" placeholder="Domain Name" required>
+                <input type="text" name="subdomain_name" placeholder="Subdomain Name" required>
+                <input type="text" name="record_type" placeholder="Record Type (A, CNAME)" required>
+                <input type="text" name="destination" placeholder="Destination" required>
+                {% if captcha_image %}
+                    <img src="{{ url_for('serve_captcha', filename=captcha_image) }}" alt="Captcha Image">
+                    <input type="text" name="captcha_code" placeholder="Captcha Code" required>
+                {% endif %}
+                <button type="submit" name="action" value="create_subdomain">Create Subdomain</button>
+            </form>
+
+            <form method="POST">
+                <button type="submit" name="action" value="logout">Logout</button>
+            </form>
+        {% endif %}
+    </div>
+</body>
+</html>
